@@ -1,0 +1,17 @@
+{
+  "name": "MY WORKSPACE — Personal Work OS",
+  "short_name": "My Workspace",
+  "description": "Osobni radni prostor: zadaci, kalendar, projekti, bilješke i financije.",
+  "lang": "hr",
+  "start_url": "./#pocetna",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F8F9FC",
+  "theme_color": "#F8F9FC",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
