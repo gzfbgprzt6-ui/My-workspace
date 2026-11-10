@@ -222,12 +222,13 @@ export function StoreProvider({ session, children }: { session: Session; childre
       const task = dataRef.current.tasks.find((x) => x.id === id);
       if (!task) return;
       const done = !task.done;
-      const updated: Task = { ...task, done, completedAt: done ? todayISO() : undefined };
+      const updated: Task = { ...task, done, completedAt: done ? todayISO() : undefined, progress: done ? 100 : task.progress === 100 ? 90 : task.progress, status: done ? task.status : task.status };
       let next: Task | null = null;
       if (done && task.recurring) {
         const base = task.due ?? todayISO();
         const due = task.recurring === 'dnevno' ? addDays(base, 1) : task.recurring === 'tjedno' ? addDays(base, 7) : addMonths(base, 1);
-        next = { ...task, id: uid(), done: false, completedAt: undefined, todayFocus: false, due, createdAt: todayISO(), subtasks: task.subtasks.map((s) => ({ ...s, id: uid(), done: false })) };
+        const shift = task.start && task.due ? addDays(task.start, (due ? (Date.parse(due) - Date.parse(base)) / 86400000 : 0)) : undefined;
+        next = { ...task, id: uid(), done: false, completedAt: undefined, todayFocus: false, due, start: shift, status: 'otvoreno', progress: 0, waitingFor: '', createdAt: todayISO(), subtasks: task.subtasks.map((s) => ({ ...s, id: uid(), done: false })) };
       }
       setData((d) => ({ ...d, tasks: [...(next ? [next] : []), ...d.tasks.map((x) => (x.id === id ? updated : x))] }));
       void write(

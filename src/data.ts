@@ -16,7 +16,7 @@ export function buildSampleData(): AppData {
     { id: 'p5', name: 'Sezonska kampanja', description: 'Ljetna promocija za iznajmljivače.', status: 'zavrseno', deadline: d(-20), tone: 'butter' },
   ];
 
-  const tasks: AppData['tasks'] = [
+  const tasks: Omit<AppData['tasks'][number], 'status' | 'progress' | 'waitingFor'>[] = [
     { id: 't1', title: 'Pripremiti prijedlog cjenika za Odmoria', done: false, priority: 'visok', due: t, category: 'Posao', projectId: 'p1', recurring: null, todayFocus: true, createdAt: d(-5),
       subtasks: [ { id: 's1', title: 'Usporediti konkurenciju', done: true }, { id: 's2', title: 'Izračunati tri paketa', done: false }, { id: 's3', title: 'Poslati na pregled', done: false } ] },
     { id: 't2', title: 'Uskladiti uplate partnera za listopad', done: false, priority: 'visok', due: t, category: 'Financije', projectId: 'p2', recurring: 'mjesečno', todayFocus: true, createdAt: d(-3), subtasks: [] },
@@ -50,7 +50,7 @@ export function buildSampleData(): AppData {
     { id: 'e11', title: 'Planiranje kvartala', date: d(-2), start: '10:00', end: '12:00', tone: 'lav' },
   ];
 
-  const notes: AppData['notes'] = [
+  const notes: Omit<AppData['notes'][number], 'space'>[] = [
     { id: 'n1', title: 'Ideje za cjenik', folder: 'Posao', tags: ['odmoria', 'cijene'], pinned: true, projectId: 'p1', updatedAt: ago(1.5),
       html: '<h2>Tri paketa</h2><ul><li><b>Osnovni</b> — jedan objekt, digitalni vodič</li><li><b>Pro</b> — do 5 objekata, prijevodi</li><li><b>Agencija</b> — neograničeno, brendiranje</li></ul><p>Provjeriti cijene konkurencije prije petka.</p>' },
     { id: 'n2', title: 'Kontrolna lista za reviziju', folder: 'Financije', tags: ['revizija'], pinned: true, projectId: 'p2', updatedAt: ago(20),
@@ -99,12 +99,41 @@ export function buildSampleData(): AppData {
   }
   txns.sort((a, b) => b.date.localeCompare(a.date));
 
+  const taskExtra: Record<string, Partial<AppData['tasks'][number]>> = {
+    t1: { status: 'u-tijeku', start: d(-3) },
+    t2: { status: 'u-tijeku', progress: 60, start: d(-2) },
+    t3: { status: 'ceka', waitingFor: 'Povratni poziv agenta (Marko)' },
+    t5: { status: 'u-tijeku', start: d(-1) },
+    t7: { status: 'ceka', waitingFor: 'Izvod iz banke za listopad', start: d(-6) },
+    t13: { start: d(4) },
+  };
+  const fullTasks = tasks.map((x) => {
+    const e = taskExtra[x.id] ?? {};
+    const status = e.status ?? 'otvoreno';
+    const progress = x.done ? 100 : x.subtasks.length ? Math.round((x.subtasks.filter((s) => s.done).length / x.subtasks.length) * 100) : e.progress ?? (status === 'u-tijeku' ? 30 : 0);
+    return { waitingFor: '', ...x, ...e, status, progress } as AppData['tasks'][number];
+  });
+  const noteExtra: Record<string, Pick<AppData['notes'][number], 'folder' | 'space'>> = {
+    n1: { folder: 'Projekti', space: 'posao' },
+    n2: { folder: 'Procedure', space: 'posao' },
+    n3: { folder: 'Projekti', space: 'posao' },
+    n4: { folder: 'Osobno', space: 'privatno' },
+    n5: { folder: 'Učenje', space: 'privatno' },
+  };
+  const fullNotes = [
+    {
+      id: 'n6', title: `Sastanak: pregled dizajna`, folder: 'Sastanci', space: 'posao' as const, tags: ['sastanak', 'odmoria'], pinned: false, projectId: 'p1', updatedAt: ago(3),
+      html: `<h2>Sastanak</h2><p><b>Datum:</b> ${t.split('-').reverse().join('.')}<br><b>Sudionici:</b> Ana, Marko</p><h2>Dogovoreno</h2><ul><li>Početna stranica ide u dvije varijante</li><li>Cjenik prije objave šaljemo Ani</li></ul><h2>Sljedeći koraci</h2><ol><li>Tekst za početnu (rok: petak)</li></ol>`,
+    },
+    ...notes.map((x) => ({ ...x, ...(noteExtra[x.id] ?? { space: 'posao' as const }) })),
+  ] as AppData['notes'];
+
   return {
     version: 1,
     projects,
-    tasks,
+    tasks: fullTasks,
     events,
-    notes,
+    notes: fullNotes,
     txns,
     budgets: [
       { category: 'Hrana', limit: 320 },
@@ -131,4 +160,6 @@ export function buildSampleData(): AppData {
 export const TASK_CATEGORIES = ['Posao', 'Financije', 'Osobno', 'Kućanstvo', 'Učenje', 'Zdravlje'];
 export const EXPENSE_CATEGORIES = ['Hrana', 'Stanovanje', 'Režije', 'Prijevoz', 'Izlasci', 'Kupovina', 'Pretplate', 'Zdravlje', 'Štednja', 'Ostalo'];
 export const INCOME_CATEGORIES = ['Plaća', 'Honorar', 'Povrat', 'Ostalo'];
-export const NOTE_FOLDERS = ['Posao', 'Financije', 'Osobno', 'Učenje'];
+export const WORK_FOLDERS = ['Sastanci', 'Projekti', 'Klijenti', 'Procedure', 'Ideje'];
+export const PRIVATE_FOLDERS = ['Osobno', 'Financije', 'Zdravlje', 'Učenje', 'Putovanja'];
+export const NOTE_FOLDERS = WORK_FOLDERS;

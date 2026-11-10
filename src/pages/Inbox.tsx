@@ -24,12 +24,12 @@ export function Inbox() {
   };
 
   const toTask = (i: InboxItem) => {
-    upsert('tasks', { id: uid(), title: i.text, done: false, priority: 'srednji', category: 'Osobno', subtasks: [], recurring: null, createdAt: todayISO() });
+    upsert('tasks', { id: uid(), title: i.text, done: false, status: 'otvoreno', progress: 0, waitingFor: '', priority: 'srednji', category: 'Osobno', subtasks: [], recurring: null, createdAt: todayISO() });
     remove('inbox', i.id);
     toast('Pretvoreno u zadatak');
   };
   const toNote = (i: InboxItem) => {
-    upsert('notes', { id: uid(), title: i.text.slice(0, 60), html: `<p>${i.text.replace(/</g, '&lt;')}</p>`, folder: 'Osobno', tags: i.kind === 'ideja' ? ['ideja'] : [], pinned: false, updatedAt: new Date().toISOString() });
+    upsert('notes', { id: uid(), title: i.text.slice(0, 60), html: `<p>${i.text.replace(/</g, '&lt;')}</p>`, folder: 'Ideje', space: 'posao', tags: i.kind === 'ideja' ? ['ideja'] : [], pinned: false, updatedAt: new Date().toISOString() });
     remove('inbox', i.id);
     toast('Pretvoreno u bilješku');
   };

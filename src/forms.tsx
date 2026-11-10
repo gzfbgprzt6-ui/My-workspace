@@ -1,10 +1,10 @@
 import React, { createContext, useContext, useState } from 'react';
-import { Plus, Trash2, Repeat } from 'lucide-react';
-import type { CalEvent, Goal, Note, Priority, Project, ProjectStatus, Recurrence, Task, Tone, Txn } from './types';
+import { Plus, Trash2, Repeat, Circle, CircleDot, Hourglass } from 'lucide-react';
+import type { CalEvent, Goal, Note, NoteSpace, Priority, Project, ProjectStatus, Recurrence, Task, TaskStatus, Tone, Txn } from './types';
 import { useStore } from './store';
 import { Button, Field, IconButton, Modal, inputCls, Segmented, ConfirmDialog } from './ui';
-import { todayISO, uid, cx, TONE_BG, STATUS_LABEL } from './utils';
-import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, NOTE_FOLDERS, TASK_CATEGORIES } from './data';
+import { todayISO, uid, cx, TONE_BG, STATUS_LABEL, diffDays, taskProgress } from './utils';
+import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, PRIVATE_FOLDERS, TASK_CATEGORIES, WORK_FOLDERS } from './data';
 
 export type QuickKind = 'task' | 'event' | 'note' | 'txn' | 'project' | 'goal';
 type Initial = Partial<Task> | Partial<CalEvent> | Partial<Note> | Partial<Txn> | Partial<Project> | Partial<Goal>;
@@ -71,6 +71,12 @@ function FormFooter({ onClose, onSave, onDelete, canSave }: { onClose: () => voi
 }
 
 /* ───────────── Task ───────────── */
+export const STATUS_META: Record<TaskStatus, { label: string; tone: Tone }> = {
+  otvoreno: { label: 'Otvoreno', tone: 'sky' },
+  'u-tijeku': { label: 'U tijeku', tone: 'lav' },
+  ceka: { label: 'Čeka se', tone: 'butter' },
+};
+
 export function TaskForm({ initial, onClose }: { initial?: Partial<Task>; onClose: () => void }) {
   const { data, upsert, remove, toast } = useStore();
   const editing = Boolean(initial?.id);
@@ -79,8 +85,12 @@ export function TaskForm({ initial, onClose }: { initial?: Partial<Task>; onClos
     title: initial?.title ?? '',
     notes: initial?.notes ?? '',
     done: initial?.done ?? false,
+    status: initial?.status ?? 'otvoreno',
+    progress: initial?.progress ?? 0,
+    waitingFor: initial?.waitingFor ?? '',
+    start: initial?.start,
     priority: initial?.priority ?? 'srednji',
-    due: initial?.due ?? todayISO(),
+    due: initial?.due ?? (editing ? undefined : todayISO()),
     category: initial?.category ?? 'Posao',
     projectId: initial?.projectId,
     subtasks: initial?.subtasks ?? [],
@@ -92,9 +102,14 @@ export function TaskForm({ initial, onClose }: { initial?: Partial<Task>; onClos
   const [newSub, setNewSub] = useState('');
   const [confirm, setConfirm] = useState(false);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
+  const auto = t.subtasks.length > 0;
+  const progress = taskProgress(t);
+  const datesBad = !!(t.start && t.due && t.start > t.due);
+  const valid = !!t.title.trim() && !datesBad;
 
   const save = () => {
-    upsert('tasks', { ...t, title: t.title.trim() });
+    if (!valid) return;
+    upsert('tasks', { ...t, title: t.title.trim(), waitingFor: t.waitingFor.trim(), progress });
     toast(editing ? 'Zadatak je ažuriran' : 'Zadatak je dodan');
     onClose();
   };
@@ -103,39 +118,85 @@ export function TaskForm({ initial, onClose }: { initial?: Partial<Task>; onClos
     set('subtasks', [...t.subtasks, { id: uid(), title: newSub.trim(), done: false }]);
     setNewSub('');
   };
+  const today = todayISO();
+  const span = t.start && t.due && !datesBad ? diffDays(t.due, t.start) + 1 : null;
+  const left = t.due ? diffDays(t.due, today) : null;
 
   return (
-    <Modal open onClose={onClose} title={editing ? 'Uredi zadatak' : 'Novi zadatak'} footer={<FormFooter onClose={onClose} onSave={save} canSave={!!t.title.trim()} onDelete={editing ? () => setConfirm(true) : undefined} />}>
+    <Modal open onClose={onClose} wide title={editing ? 'Uredi zadatak' : 'Novi zadatak'} footer={<FormFooter onClose={onClose} onSave={save} canSave={valid} onDelete={editing ? () => setConfirm(true) : undefined} />}>
       <div className="grid grid-cols-1 gap-4">
         <Field label="Naziv" htmlFor="task-title">
-          <input id="task-title" autoFocus className={inputCls} value={t.title} onChange={(e) => set('title', e.target.value)} placeholder="Što treba napraviti?" onKeyDown={(e) => e.key === 'Enter' && t.title.trim() && save()} />
+          <input id="task-title" autoFocus={!editing} className={inputCls} value={t.title} onChange={(e) => set('title', e.target.value)} placeholder="Što treba napraviti?" onKeyDown={(e) => e.key === 'Enter' && save()} />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Rok" htmlFor="task-due">
-            <input id="task-due" type="date" className={inputCls} value={t.due ?? ''} onChange={(e) => set('due', e.target.value || undefined)} />
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          <Field label="Status" htmlFor="task-status">
+            <div id="task-status">
+              <Segmented<TaskStatus>
+                label="Status"
+                value={t.status}
+                onChange={(v) => set('status', v)}
+                options={[
+                  { value: 'otvoreno', label: 'Otvoreno', icon: <Circle size={13} /> },
+                  { value: 'u-tijeku', label: 'U tijeku', icon: <CircleDot size={13} /> },
+                  { value: 'ceka', label: 'Čeka se', icon: <Hourglass size={13} /> },
+                ]}
+              />
+            </div>
           </Field>
-          <Field label="Kategorija" htmlFor="task-cat">
-            <select id="task-cat" className={inputCls} value={t.category} onChange={(e) => set('category', e.target.value)}>
-              {TASK_CATEGORIES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
+          <Field label={`Napredak · ${progress}%`} htmlFor="task-progress" hint={auto ? 'Računa se automatski iz podzadataka.' : undefined}>
+            <div className="flex items-center gap-3 h-10">
+              <input id="task-progress" type="range" min={0} max={100} step={5} disabled={auto} value={progress} onChange={(e) => set('progress', Number(e.target.value))} className="flex-1 accent-[#A78BFA] disabled:opacity-60" />
+              <div className="flex gap-1">
+                {[0, 50, 100].map((v) => (
+                  <button key={v} type="button" disabled={auto} onClick={() => set('progress', v)} className="h-7 px-2 rounded-lg bg-surface2 text-[11px] font-semibold text-muted hover:text-ink disabled:opacity-40 tabular-nums">{v}%</button>
+                ))}
+              </div>
+            </div>
           </Field>
         </div>
-        <Field label="Prioritet" htmlFor="task-prio">
-          <div id="task-prio">
-            <Segmented<Priority>
-              label="Prioritet"
-              value={t.priority}
-              onChange={(v) => set('priority', v)}
-              options={[
-                { value: 'visok', label: 'Visok' },
-                { value: 'srednji', label: 'Srednji' },
-                { value: 'nizak', label: 'Nizak' },
-              ]}
-            />
-          </div>
-        </Field>
+
+        {t.status === 'ceka' && (
+          <Field label="Na što ili koga čekaš?" htmlFor="task-waiting">
+            <input id="task-waiting" className={cx(inputCls, 'bg-butter/20')} value={t.waitingFor} onChange={(e) => set('waitingFor', e.target.value)} placeholder="npr. Odgovor klijenta, potpis ugovora, izvod banke" />
+          </Field>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Početak" htmlFor="task-start">
+            <input id="task-start" type="date" className={inputCls} value={t.start ?? ''} onChange={(e) => set('start', e.target.value || undefined)} />
+          </Field>
+          <Field label="Rok završetka" htmlFor="task-due">
+            <input id="task-due" type="date" className={inputCls} value={t.due ?? ''} onChange={(e) => set('due', e.target.value || undefined)} />
+          </Field>
+        </div>
+        {datesBad ? (
+          <p className="text-xs text-peach-ink -mt-2">Početak mora biti prije roka završetka.</p>
+        ) : (span || left !== null) && (
+          <p className="text-xs text-muted -mt-2">
+            {span ? `Trajanje ${span} ${span === 1 ? 'dan' : 'dana'}` : ''}
+            {span && left !== null ? ' · ' : ''}
+            {left !== null && !t.done ? (left < 0 ? <span className="text-peach-ink font-semibold">kasni {-left} d</span> : left === 0 ? 'rok je danas' : `još ${left} d do roka`) : ''}
+          </p>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Prioritet" htmlFor="task-prio">
+            <select id="task-prio" className={inputCls} value={t.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
+              <option value="visok">Visok</option>
+              <option value="srednji">Srednji</option>
+              <option value="nizak">Nizak</option>
+            </select>
+          </Field>
+          <Field label="Kategorija" htmlFor="task-cat">
+            <input id="task-cat" list="task-cats" className={inputCls} value={t.category} onChange={(e) => set('category', e.target.value)} placeholder="npr. Posao" />
+            <datalist id="task-cats">
+              {Array.from(new Set([...TASK_CATEGORIES, ...data.tasks.map((x) => x.category)])).map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </Field>
+        </div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Projekt" htmlFor="task-project">
             <select id="task-project" className={inputCls} value={t.projectId ?? ''} onChange={(e) => set('projectId', e.target.value || undefined)}>
@@ -158,21 +219,22 @@ export function TaskForm({ initial, onClose }: { initial?: Partial<Task>; onClos
         </div>
         <label className="flex items-center gap-2.5 text-sm text-ink cursor-pointer">
           <input type="checkbox" id="task-focus" className="w-4 h-4 accent-[#6DD3B2]" checked={!!t.todayFocus} onChange={(e) => set('todayFocus', e.target.checked)} />
-          Označi kao prioritet za danas
+          Prioritet za danas (prikazuje se na nadzornoj ploči)
         </label>
-        <Field label="Podzadaci" htmlFor="task-sub">
+        <Field label={`Podzadaci${t.subtasks.length ? ` · ${t.subtasks.filter((x) => x.done).length}/${t.subtasks.length}` : ''}`} htmlFor="task-sub">
           <div className="grid grid-cols-1 gap-1.5">
             {t.subtasks.map((s) => (
               <div key={s.id} className="flex items-center gap-2 bg-surface2 rounded-xl pl-3 pr-1 h-10">
-                <input type="checkbox" aria-label={`Završeno: ${s.title}`} className="w-4 h-4 accent-[#6DD3B2]" checked={s.done} onChange={() => set('subtasks', t.subtasks.map((x) => (x.id === s.id ? { ...x, done: !x.done } : x)))} />
-                <span className={cx('flex-1 text-sm', s.done && 'line-through text-muted')}>{s.title}</span>
+                <input type="checkbox" aria-label={`Završeno: ${s.title}`} className="w-4 h-4 accent-[#6DD3B2] shrink-0" checked={s.done} onChange={() => set('subtasks', t.subtasks.map((x) => (x.id === s.id ? { ...x, done: !x.done } : x)))} />
+                <label htmlFor={`sub-${s.id}`} className="sr-only">Naziv podzadatka</label>
+                <input id={`sub-${s.id}`} value={s.title} onChange={(e) => set('subtasks', t.subtasks.map((x) => (x.id === s.id ? { ...x, title: e.target.value } : x)))} className={cx('flex-1 min-w-0 bg-transparent text-sm focus:outline-none', s.done && 'line-through text-muted')} />
                 <IconButton label="Ukloni podzadatak" onClick={() => set('subtasks', t.subtasks.filter((x) => x.id !== s.id))}>
                   <Trash2 size={14} />
                 </IconButton>
               </div>
             ))}
             <div className="flex gap-2">
-              <input id="task-sub" className={inputCls} value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="Dodaj podzadatak" onKeyDown={(e) => e.key === 'Enter' && addSub()} />
+              <input id="task-sub" className={inputCls} value={newSub} onChange={(e) => setNewSub(e.target.value)} placeholder="Dodaj korak" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSub(); } }} />
               <Button onClick={addSub} aria-label="Dodaj podzadatak">
                 <Plus size={16} />
               </Button>
@@ -180,7 +242,7 @@ export function TaskForm({ initial, onClose }: { initial?: Partial<Task>; onClos
           </div>
         </Field>
         <Field label="Bilješke" htmlFor="task-notes">
-          <textarea id="task-notes" rows={2} className={cx(inputCls, 'h-auto py-2.5 resize-none')} value={t.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Dodatni detalji" />
+          <textarea id="task-notes" rows={3} className={cx(inputCls, 'h-auto py-2.5 resize-y')} value={t.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Detalji, poveznice, kontakt osobe…" />
         </Field>
       </div>
       <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} title="Obrisati zadatak?" text={`„${t.title}" bit će trajno uklonjen.`} onConfirm={() => { remove('tasks', t.id); toast('Zadatak je obrisan'); onClose(); }} />
@@ -253,14 +315,16 @@ function NoteQuickForm({ initial, onClose }: { initial?: Partial<Note>; onClose:
   const { upsert, toast } = useStore();
   const [title, setTitle] = useState(initial?.title ?? '');
   const [body, setBody] = useState('');
-  const [folder, setFolder] = useState(initial?.folder ?? 'Osobno');
+  const [space, setSpace] = useState<NoteSpace>(initial?.space ?? 'posao');
+  const [folder, setFolder] = useState(initial?.folder ?? 'Sastanci');
+  const folders = space === 'posao' ? WORK_FOLDERS : PRIVATE_FOLDERS;
   const save = () => {
     const html = body
       .split(/\n+/)
       .filter(Boolean)
       .map((p) => `<p>${p.replace(/</g, '&lt;')}</p>`)
       .join('');
-    upsert('notes', { id: uid(), title: title.trim() || 'Bez naslova', html, folder, tags: [], pinned: false, projectId: initial?.projectId, updatedAt: new Date().toISOString() });
+    upsert('notes', { id: uid(), title: title.trim() || 'Bez naslova', html, folder, space, tags: [], pinned: false, projectId: space === 'posao' ? initial?.projectId : undefined, updatedAt: new Date().toISOString() });
     toast('Bilješka je spremljena');
     onClose();
   };
@@ -273,9 +337,15 @@ function NoteQuickForm({ initial, onClose }: { initial?: Partial<Note>; onClose:
         <Field label="Sadržaj" htmlFor="nq-body" hint="Oblikovanje (podebljano, popisi) dostupno je u modulu Bilješke.">
           <textarea id="nq-body" rows={5} className={cx(inputCls, 'h-auto py-2.5 resize-none')} value={body} onChange={(e) => setBody(e.target.value)} />
         </Field>
+        <Segmented<NoteSpace>
+          label="Prostor"
+          value={space}
+          onChange={(v) => { setSpace(v); setFolder(v === 'posao' ? WORK_FOLDERS[0] : PRIVATE_FOLDERS[0]); }}
+          options={[{ value: 'posao', label: 'Posao' }, { value: 'privatno', label: 'Privatno' }]}
+        />
         <Field label="Mapa" htmlFor="nq-folder">
           <select id="nq-folder" className={inputCls} value={folder} onChange={(e) => setFolder(e.target.value)}>
-            {NOTE_FOLDERS.map((f) => (
+            {folders.map((f) => (
               <option key={f}>{f}</option>
             ))}
           </select>

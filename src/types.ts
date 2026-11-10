@@ -8,9 +8,16 @@ export interface Subtask {
   done: boolean;
 }
 
+export type TaskStatus = 'otvoreno' | 'u-tijeku' | 'ceka';
+export type NoteSpace = 'posao' | 'privatno';
+
 export interface Task {
   id: string;
   title: string;
+  status: TaskStatus;
+  progress: number; // 0–100 (computed from subtasks when there are any)
+  waitingFor: string;
+  start?: string; // YYYY-MM-DD
   notes?: string;
   done: boolean;
   priority: Priority;
@@ -51,6 +58,7 @@ export interface Note {
   title: string;
   html: string;
   folder: string;
+  space: NoteSpace;
   tags: string[];
   pinned: boolean;
   projectId?: string;

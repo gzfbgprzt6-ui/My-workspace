@@ -113,7 +113,7 @@ function ProjectCard({ p, onOpen, compact }: { p: Project; onOpen: () => void; c
   const pr = projectProgress(p.id, data.tasks);
   const tasks = data.tasks.filter((t) => t.projectId === p.id);
   const openT = tasks.filter((t) => !t.done).length;
-  const notes = data.notes.filter((n) => n.projectId === p.id).length;
+  const notes = data.notes.filter((n) => n.projectId === p.id && n.space !== 'privatno').length;
   const daysLeft = p.deadline ? diffDays(p.deadline, todayISO()) : null;
   return (
     <button type="button" onClick={onOpen} className={cx('w-full text-left rounded-[22px] bg-surface border border-line/80 shadow-soft hover:shadow-lift hover:-translate-y-0.5 transition focus-ring', compact ? 'p-4' : 'p-5')}>
@@ -150,7 +150,7 @@ function ProjectDetail({ p, onClose, onStatus }: { p: Project; onClose: () => vo
   const { data } = useStore();
   const { open } = useQuick();
   const tasks = data.tasks.filter((t) => t.projectId === p.id).sort((a, b) => Number(a.done) - Number(b.done));
-  const notes = data.notes.filter((n) => n.projectId === p.id);
+  const notes = data.notes.filter((n) => n.projectId === p.id && n.space !== 'privatno');
   const pr = projectProgress(p.id, data.tasks);
   return (
     <Modal open onClose={onClose} title={p.name} wide>

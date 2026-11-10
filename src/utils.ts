@@ -113,6 +113,9 @@ export const TONE_HEX: Record<Tone, string> = {
   lav: '#A78BFA', mint: '#6DD3B2', peach: '#FFB59E', butter: '#F5D67B', sky: '#A5C7F7',
 };
 
+export const taskProgress = (t: Task) =>
+  t.done ? 100 : t.subtasks.length ? Math.round((t.subtasks.filter((s) => s.done).length / t.subtasks.length) * 100) : Math.max(0, Math.min(100, t.progress ?? 0));
+
 export const projectProgress = (projectId: string, tasks: Task[]) => {
   const t = tasks.filter((x) => x.projectId === projectId);
   if (!t.length) return 0;

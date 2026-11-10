@@ -28,7 +28,8 @@ const num = (v: unknown) => Number(v ?? 0);
 /* ───────── row → app ───────── */
 export const fromRow = {
   tasks: (r: Row): Task => ({
-    id: r.id, title: r.title, notes: r.notes ?? '', done: r.done, priority: r.priority, due: r.due ?? undefined,
+    id: r.id, title: r.title, notes: r.notes ?? '', done: r.done, status: r.status ?? 'otvoreno', progress: r.progress ?? 0,
+    waitingFor: r.waiting_for ?? '', start: r.start_date ?? undefined, priority: r.priority, due: r.due ?? undefined,
     category: r.category, projectId: r.project_id ?? undefined, subtasks: Array.isArray(r.subtasks) ? r.subtasks : [],
     recurring: r.recurring ?? null, todayFocus: r.today_focus, createdAt: String(r.created_at).slice(0, 10),
     completedAt: r.completed_at ?? undefined,
@@ -41,7 +42,7 @@ export const fromRow = {
     id: r.id, name: r.name, description: r.description ?? '', status: r.status, deadline: r.deadline ?? undefined, tone: r.tone,
   }),
   notes: (r: Row): Note => ({
-    id: r.id, title: r.title ?? '', html: r.html ?? '', folder: r.folder, tags: r.tags ?? [], pinned: r.pinned,
+    id: r.id, title: r.title ?? '', html: r.html ?? '', folder: r.folder, space: r.space ?? 'posao', tags: r.tags ?? [], pinned: r.pinned,
     projectId: r.project_id ?? undefined, updatedAt: r.updated_at,
   }),
   txns: (r: Row): Txn => ({
@@ -56,14 +57,15 @@ export const fromRow = {
 /* ───────── app → row (user_id is filled by the database default = auth.uid()) ───────── */
 export const toRow: Record<CollectionKey, (x: any) => Row> = {
   tasks: (t: Task) => ({
-    id: t.id, title: t.title, notes: t.notes ?? '', done: t.done, priority: t.priority, due: n(t.due), category: t.category,
+    id: t.id, title: t.title, notes: t.notes ?? '', done: t.done, status: t.status, progress: Math.round(t.progress),
+    waiting_for: t.status === 'ceka' ? t.waitingFor : '', start_date: n(t.start), priority: t.priority, due: n(t.due), category: t.category,
     project_id: n(t.projectId), subtasks: t.subtasks, recurring: n(t.recurring), today_focus: !!t.todayFocus, completed_at: n(t.completedAt),
   }),
   events: (e: CalEvent) => ({
     id: e.id, title: e.title, date: e.date, start_time: e.start, end_time: e.end, tone: e.tone, location: e.location ?? '', task_id: n(e.taskId),
   }),
   projects: (p: Project) => ({ id: p.id, name: p.name, description: p.description, status: p.status, deadline: n(p.deadline), tone: p.tone }),
-  notes: (x: Note) => ({ id: x.id, title: x.title, html: x.html, folder: x.folder, tags: x.tags, pinned: x.pinned, project_id: n(x.projectId) }),
+  notes: (x: Note) => ({ id: x.id, title: x.title, html: x.html, folder: x.folder, space: x.space, tags: x.tags, pinned: x.pinned, project_id: x.space === 'privatno' ? null : n(x.projectId) }),
   txns: (t: Txn) => ({ id: t.id, type: t.type, amount: t.amount, category: t.category, date: t.date, description: t.description, recurring: t.recurring }),
   goals: (g: Goal) => ({ id: g.id, name: g.name, target: g.target, saved: g.saved, deadline: n(g.deadline), tone: g.tone }),
   inbox: (i: InboxItem) => ({ id: i.id, text: i.text, kind: i.kind }),

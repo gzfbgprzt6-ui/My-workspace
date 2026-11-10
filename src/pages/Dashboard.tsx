@@ -26,6 +26,7 @@ export function Dashboard() {
     const doneToday = dueToday.filter((t) => t.done).length;
     const open = data.tasks.filter((t) => !t.done);
     const overdue = open.filter((t) => t.due && t.due < today).length;
+    const waiting = open.filter((t) => t.status === 'ceka').length;
     const todayEvents = data.events.filter((e) => e.date === today).sort((a, b) => a.start.localeCompare(b.start));
     const weekEnd = addDays(today, 7);
     const weekEvents = data.events.filter((e) => e.date >= today && e.date < weekEnd).length;
@@ -34,7 +35,7 @@ export function Dashboard() {
     const mTx = data.txns.filter((t) => t.date.startsWith(month));
     const income = mTx.filter((t) => t.type === 'prihod').reduce((s, t) => s + t.amount, 0);
     const expense = mTx.filter((t) => t.type === 'rashod').reduce((s, t) => s + t.amount, 0);
-    return { dueToday, doneToday, open, overdue, todayEvents, weekEvents, activeProjects, income, expense };
+    return { dueToday, doneToday, open, overdue, waiting, todayEvents, weekEvents, activeProjects, income, expense };
   }, [data, today]);
 
   const priorities = useMemo(() => {
@@ -55,7 +56,7 @@ export function Dashboard() {
   );
 
   const series = useMemo(() => monthlySeries(data.txns, 6), [data.txns]);
-  const recentNotes = useMemo(() => [...data.notes].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4), [data.notes]);
+  const recentNotes = useMemo(() => data.notes.filter((n) => n.space !== 'privatno').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4), [data.notes]);
   const completion = stats.dueToday.length ? Math.round((stats.doneToday / stats.dueToday.length) * 100) : 0;
   const weekDone = data.tasks.filter((t) => t.done && t.completedAt && diffDays(today, t.completedAt) < 7).length;
   const balance = stats.income - stats.expense;
@@ -152,7 +153,7 @@ export function Dashboard() {
 
         {/* KPIs */}
         <div className="col-span-full grid grid-cols-2 xl:grid-cols-4 gap-4 md:gap-5">
-          <Kpi tone="mint" icon={<SquareCheck size={17} />} label="Otvoreni zadaci" value={String(stats.open.length)} foot={stats.overdue ? `${stats.overdue} kasni` : 'Ništa ne kasni'} footWarn={stats.overdue > 0} onClick={() => go('zadaci')} />
+          <Kpi tone="mint" icon={<SquareCheck size={17} />} label="Otvoreni zadaci" value={String(stats.open.length)} foot={[stats.overdue ? `${stats.overdue} kasni` : '', stats.waiting ? `${stats.waiting} čeka` : ''].filter(Boolean).join(' · ') || 'Ništa ne kasni'} footWarn={stats.overdue > 0} onClick={() => go('zadaci')} />
           <Kpi tone="sky" icon={<CalendarDays size={17} />} label="Događaji danas" value={String(stats.todayEvents.length)} foot={`${stats.weekEvents} u sljedećih 7 dana`} onClick={() => go('kalendar')} />
           <Kpi tone="lav" icon={<FolderKanban size={17} />} label="Aktivni projekti" value={String(stats.activeProjects.length)} foot={`${data.projects.filter((p) => p.status !== 'zavrseno').length} ukupno otvoreno`} onClick={() => go('projekti')} />
           <Kpi
